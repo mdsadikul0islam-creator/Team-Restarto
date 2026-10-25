@@ -1161,12 +1161,15 @@ html.rs-pre .logo img{opacity:0}
       }
       fails=0; $('uPass').value='';
       await ready;
-      if(!artifact||!isEditor){
-        msg('Password correct, but you need to be signed in to Claude as the site owner to publish changes.'); return;
-      }
       unlocked=true; view('manage'); showTab('v'); renderList();
     }
-    $('adminBtn').onclick=openPanel; ready.then(function(){ if(artifact&&isEditor) $('adminBtn').hidden=false; });
+    var isOwnerArtifact=false;
+    $('adminBtn').onclick=function(){ if(isOwnerArtifact) openPanel(); else {panel.hidden=false; view('login')} };
+    ready.then(function(){
+      if(artifact&&isEditor){isOwnerArtifact=true; $('adminBtn').hidden=false; return}
+      var q=false; try{q=/[?&]admin\b/.test(location.search)||!!localStorage.getItem('rs-gh')}catch(e){}
+      if(q) $('adminBtn').hidden=false;
+    });
     $('lgIn').onclick=login;
     $('uPass').addEventListener('keydown',function(e){if(e.key==='Enter') login()});
     $('lgClose').onclick=closePanel;
@@ -1220,6 +1223,28 @@ html.rs-pre .logo img{opacity:0}
         box.appendChild(row);
       });
     }
+    function ghCfg(){try{return JSON.parse(localStorage.getItem('rs-gh')||'{}')}catch(e){return {}}}
+    async function publishHtml(html){
+      if(artifact) return artifact.publish(html);
+      var cfg=ghCfg();
+      if(!cfg.repo){var r=prompt('GitHub repo (owner/Team-Restarto):',''); if(!r) throw {code:'cancelled'}; cfg.repo=r.trim().replace(/^https?:\/\/github\.com\//,'').replace(/\/$/,'')}
+      if(!cfg.token){var t=prompt('GitHub token (Contents: Read and write):',''); if(!t) throw {code:'cancelled'}; cfg.token=t.trim()}
+      cfg.branch=cfg.branch||'main';
+      var api='https://api.github.com/repos/'+cfg.repo+'/contents/index.html';
+      var h={'Authorization':'Bearer '+cfg.token,'X-GitHub-Api-Version':'2022-11-28'};
+      var g=await fetch(api+'?ref='+encodeURIComponent(cfg.branch),{headers:Object.assign({'Accept':'application/vnd.github.object+json'},h)});
+      if(!g.ok){
+        if(g.status===401||g.status===403||g.status===404){cfg.token=''; try{localStorage.setItem('rs-gh',JSON.stringify(cfg))}catch(e){}}
+        throw {code:'github '+g.status};
+      }
+      var sha=(await g.json()).sha;
+      var bytes=new TextEncoder().encode(html), bin='';
+      for(var i=0;i<bytes.length;i+=32768) bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+32768));
+      var put=await fetch(api,{method:'PUT',headers:Object.assign({'Accept':'application/vnd.github+json','Content-Type':'application/json'},h),
+        body:JSON.stringify({message:'Update site from admin panel',content:btoa(bin),sha:sha,branch:cfg.branch})});
+      if(!put.ok) throw {code:'github '+put.status};
+      try{localStorage.setItem('rs-gh',JSON.stringify(cfg))}catch(e){}
+    }
     async function commit(next,nextAcl){
       msg('Publishing…');
       try{
@@ -1245,8 +1270,8 @@ html.rs-pre .logo img{opacity:0}
           el.style.removeProperty('--d');
           if(!el.getAttribute('style')) el.removeAttribute('style');
         });
-        await artifact.publish('<!DOCTYPE html>\n'+clone.outerHTML);
-        msg('Published. Reloading…');
+        await publishHtml('<!DOCTYPE html>\n'+clone.outerHTML);
+        msg(artifact?'Published. Reloading…':'Saved to GitHub. Site will update in about 1 minute — then refresh.');
       }catch(err){
         msg('Could not publish ('+((err&&err.code)||'error')+'). Please try again.');
       }
