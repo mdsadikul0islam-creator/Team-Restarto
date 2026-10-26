@@ -436,6 +436,9 @@ h2{font-weight:700;letter-spacing:-.03em}
 .spot .thumb{border-radius:26px}
 @media (max-width:40rem){.thumb{border-radius:18px}}
 
+/* keep the slide-in animation from widening the page (it made phones zoom out and pushed the tab bar off screen) */
+main{overflow-x:clip}
+
 /* top bar */
 header.top{position:sticky;top:0;z-index:30;padding:calc(.6rem + env(safe-area-inset-top,0px)) 0 .2rem}
 .nav{background:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;border:0!important;box-shadow:none!important;border-radius:999px;padding:.5rem .55rem .5rem 1.15rem;position:relative}
