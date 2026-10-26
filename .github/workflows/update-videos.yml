@@ -41,14 +41,39 @@ jobs:
               .replace(/&apos;/g, "'").replace(/&amp;/g, '&');
           }
 
-          async function channelId() {
-            if (process.env.YT_CHANNEL_ID) return process.env.YT_CHANNEL_ID;
+          const KNOWN_ID = 'UCDwgn4MWDeBTVenD2371Fnw';
+
+          async function resolveId() {
             const html = await getText('https://www.youtube.com/@' + HANDLE);
             const m = html.match(/"channelId":"(UC[\w-]{22})"/) ||
                       html.match(/channel_id=(UC[\w-]{22})/) ||
                       html.match(/youtube\.com\/channel\/(UC[\w-]{22})/);
-            if (!m) throw new Error('Could not find the channel id for @' + HANDLE);
+            if (!m) throw new Error('channel id not found on the @' + HANDLE + ' page');
             return m[1];
+          }
+
+          async function loadFeed() {
+            const ids = [process.env.YT_CHANNEL_ID, KNOWN_ID].filter(Boolean);
+            const tried = new Set();
+            const attempt = async (id) => {
+              if (tried.has(id)) return null;
+              tried.add(id);
+              try {
+                const xml = await getText('https://www.youtube.com/feeds/videos.xml?channel_id=' + id);
+                console.log('Feed OK for channel', id, '- author:', (xml.match(/<author>\s*<name>([\s\S]*?)<\/name>/) || [])[1]);
+                return xml;
+              } catch (e) {
+                console.log('Feed failed for', id, '-', e.message);
+                return null;
+              }
+            };
+            for (const id of ids) { const x = await attempt(id); if (x) return x; }
+            try {
+              const id = await resolveId();
+              console.log('Resolved channel id from the handle:', id);
+              const x = await attempt(id); if (x) return x;
+            } catch (e) { console.log('Could not resolve the channel id:', e.message); }
+            throw new Error('Could not load the YouTube feed (see the lines above).');
           }
 
           async function isShort(id) {
@@ -73,12 +98,12 @@ jobs:
           const list = JSON.parse(m[2]);
           const known = new Set(list.map(v => v.id));
 
-          const cid = await channelId();
-          const feed = await getText('https://www.youtube.com/feeds/videos.xml?channel_id=' + cid);
+          const feed = await loadFeed();
           const entries = [...feed.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map(e => ({
             id: (e[1].match(/<yt:videoId>([\w-]{11})<\/yt:videoId>/) || [])[1],
             title: decode(((e[1].match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '').trim()),
           })).filter(e => e.id);
+          console.log('Feed has', entries.length, 'videos; page has', list.length);
           if (!entries.length) throw new Error('The feed has no videos');
 
           // Only videos newer than the newest video we already know are added,
