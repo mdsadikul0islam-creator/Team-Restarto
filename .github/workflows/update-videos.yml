@@ -1,0 +1,121 @@
+name: Update videos from YouTube
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Add new videos to index.html
+        run: |
+          cat > update-videos.mjs <<'SCRIPT_END'
+          import fs from 'node:fs';
+
+          const FILE = process.env.TARGET || 'index.html';
+          const HANDLE = process.env.YT_HANDLE || 'teamrestarto1';
+          const UA = { 'user-agent': 'Mozilla/5.0 (compatible; TeamRestartoBot/1.0)', 'accept-language': 'en' };
+
+          async function getText(url) {
+            const r = await fetch(url, { headers: UA });
+            if (!r.ok) throw new Error(url + ' -> HTTP ' + r.status);
+            return r.text();
+          }
+
+          function decode(s) {
+            return s
+              .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n))
+              .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+              .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+              .replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+          }
+
+          async function channelId() {
+            if (process.env.YT_CHANNEL_ID) return process.env.YT_CHANNEL_ID;
+            const html = await getText('https://www.youtube.com/@' + HANDLE);
+            const m = html.match(/"channelId":"(UC[\w-]{22})"/) ||
+                      html.match(/channel_id=(UC[\w-]{22})/) ||
+                      html.match(/youtube\.com\/channel\/(UC[\w-]{22})/);
+            if (!m) throw new Error('Could not find the channel id for @' + HANDLE);
+            return m[1];
+          }
+
+          async function isShort(id) {
+            try {
+              const r = await fetch('https://www.youtube.com/shorts/' + id, { headers: UA, redirect: 'manual' });
+              return r.status === 200;
+            } catch { return true; }
+          }
+
+          async function thumb(id, short) {
+            const name = short ? 'hqdefault' : 'mqdefault';
+            const r = await fetch('https://i.ytimg.com/vi/' + id + '/' + name + '.jpg', { headers: UA });
+            if (!r.ok) return '';
+            const buf = Buffer.from(await r.arrayBuffer());
+            return 'data:image/jpeg;base64,' + buf.toString('base64');
+          }
+
+          const html = fs.readFileSync(FILE, 'utf8');
+          const re = /(<script id="vdata" type="application\/json">)([\s\S]*?)(<\/script>)/;
+          const m = html.match(re);
+          if (!m) throw new Error('vdata block not found in ' + FILE);
+          const list = JSON.parse(m[2]);
+          const known = new Set(list.map(v => v.id));
+
+          const cid = await channelId();
+          const feed = await getText('https://www.youtube.com/feeds/videos.xml?channel_id=' + cid);
+          const entries = [...feed.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map(e => ({
+            id: (e[1].match(/<yt:videoId>([\w-]{11})<\/yt:videoId>/) || [])[1],
+            title: decode(((e[1].match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '').trim()),
+          })).filter(e => e.id);
+          if (!entries.length) throw new Error('The feed has no videos');
+
+          // Only videos newer than the newest video we already know are added,
+          // so videos deleted in the admin panel do not come back.
+          let fresh;
+          if (!list.length) fresh = entries;
+          else {
+            const idx = entries.findIndex(e => known.has(e.id));
+            if (idx < 0) { console.log('No known video in the feed, nothing added.'); process.exit(0); }
+            fresh = entries.slice(0, idx);
+          }
+          fresh = fresh.filter(e => !known.has(e.id));
+          if (!fresh.length) { console.log('No new videos.'); process.exit(0); }
+
+          const add = [];
+          for (const e of fresh) {
+            const short = await isShort(e.id);
+            let img = '';
+            try { img = await thumb(e.id, short); } catch {}
+            add.push({ id: e.id, title: e.title || 'Untitled', short, img });
+            console.log('Added:', e.id, e.title);
+          }
+          const next = add.concat(list);
+          const json = JSON.stringify(next).replace(/</g, '\\u003c');
+          fs.writeFileSync(FILE, html.replace(re, (_, a, __, c) => a + json + c));
+          SCRIPT_END
+          node update-videos.mjs
+          rm update-videos.mjs
+
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          if git diff --cached --quiet; then
+            echo "Nothing to commit"
+          else
+            git commit -m "Auto-add new videos from YouTube"
+            git push
+          fi
