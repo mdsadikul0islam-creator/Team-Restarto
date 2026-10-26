@@ -110,6 +110,13 @@ jobs:
           }
 
           /* ---------- helpers ---------- */
+          // Remove #hashtags from a title. If nothing is left, keep the words without the # sign.
+          function cleanTitle(t) {
+            const tidy = x => x.replace(/\s+/g, ' ').trim();
+            const stripped = tidy(t.replace(/(^|\s)#[^\s#]+/gu, (all, sp) => /^\s*#\d+$/.test(all) ? all : ' '));
+            return stripped || tidy(t.replace(/#/g, ''));
+          }
+
           async function isShort(id) {
             try {
               const r = await fetch('https://www.youtube.com/shorts/' + id, { headers: UA, redirect: 'manual' });
@@ -156,8 +163,8 @@ jobs:
             const short = s === null ? await isShort(e.id) : s;
             let img = '';
             try { img = await thumb(e.id, short); } catch {}
-            add.push({ id: e.id, title: e.title || 'Untitled', short, img });
-            console.log('Added:', e.id, e.title);
+            add.push({ id: e.id, title: cleanTitle(e.title || '') || 'Untitled', short, img });
+            console.log('Added:', e.id, cleanTitle(e.title || ''));
           }
           const json = JSON.stringify(add.concat(list)).replace(/</g, '\\u003c');
           fs.writeFileSync(FILE, html.replace(re, (_, a, __, c) => a + json + c));
