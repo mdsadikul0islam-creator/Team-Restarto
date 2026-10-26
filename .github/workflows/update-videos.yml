@@ -25,12 +25,16 @@ jobs:
 
           const FILE = process.env.TARGET || 'index.html';
           const HANDLE = process.env.YT_HANDLE || 'teamrestarto1';
-          const note = (...a) => console.log('::notice::' + a.join(' ').replace(/[\r\n]+/g, ' '));
-          const UA = { 'user-agent': 'Mozilla/5.0 (compatible; TeamRestartoBot/1.0)', 'accept-language': 'en' };
+          const KNOWN_ID = 'UCDwgn4MWDeBTVenD2371Fnw';
+          const UA = {
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'accept-language': 'en-US,en;q=0.9',
+            'cookie': 'CONSENT=YES+1; SOCS=CAI',
+          };
 
-          async function getText(url) {
-            const r = await fetch(url, { headers: UA });
-            if (!r.ok) throw new Error(url + ' -> HTTP ' + r.status);
+          async function getText(url, extra = {}) {
+            const r = await fetch(url, { headers: { ...UA, ...extra } });
+            if (!r.ok) throw new Error('HTTP ' + r.status + ' for ' + url);
             return r.text();
           }
 
@@ -42,41 +46,70 @@ jobs:
               .replace(/&apos;/g, "'").replace(/&amp;/g, '&');
           }
 
-          const KNOWN_ID = 'UCDwgn4MWDeBTVenD2371Fnw';
-
-          async function resolveId() {
-            const html = await getText('https://www.youtube.com/@' + HANDLE);
-            const m = html.match(/"channelId":"(UC[\w-]{22})"/) ||
-                      html.match(/channel_id=(UC[\w-]{22})/) ||
-                      html.match(/youtube\.com\/channel\/(UC[\w-]{22})/);
-            if (!m) throw new Error('channel id not found on the @' + HANDLE + ' page');
-            return m[1];
+          /* ---------- source 1 and 2: RSS feeds ---------- */
+          function parseFeed(xml) {
+            return [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map(e => ({
+              id: (e[1].match(/<yt:videoId>([\w-]{11})<\/yt:videoId>/) || [])[1],
+              title: decode(((e[1].match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '').trim()),
+            })).filter(e => e.id);
           }
 
-          async function loadFeed() {
-            const ids = [process.env.YT_CHANNEL_ID, KNOWN_ID].filter(Boolean);
-            const tried = new Set();
-            const attempt = async (id) => {
-              if (tried.has(id)) return null;
-              tried.add(id);
+          async function fromFeeds() {
+            const urls = [
+              'https://www.youtube.com/feeds/videos.xml?channel_id=' + KNOWN_ID,
+              'https://www.youtube.com/feeds/videos.xml?playlist_id=UU' + KNOWN_ID.slice(2),
+            ];
+            for (const u of urls) {
               try {
-                const xml = await getText('https://www.youtube.com/feeds/videos.xml?channel_id=' + id);
-                note('Feed OK for channel', id, '- author:', (xml.match(/<author>\s*<name>([\s\S]*?)<\/name>/) || [])[1]);
-                return xml;
-              } catch (e) {
-                note('Feed failed for', id, '-', e.message);
-                return null;
-              }
-            };
-            for (const id of ids) { const x = await attempt(id); if (x) return x; }
-            try {
-              const id = await resolveId();
-              note('Resolved channel id from the handle:', id);
-              const x = await attempt(id); if (x) return x;
-            } catch (e) { note('Could not resolve the channel id:', e.message); }
-            throw new Error('Could not load the YouTube feed (see the lines above).');
+                const list = parseFeed(await getText(u, { accept: 'application/atom+xml,application/xml,text/xml,*/*' }));
+                console.log('Feed OK:', u, '->', list.length, 'videos');
+                if (list.length) return [{ name: 'feed', short: null, entries: list }];
+              } catch (e) { console.log('Feed failed:', e.message); }
+            }
+            return null;
           }
 
+          /* ---------- source 3: channel pages ---------- */
+          function walk(node, out) {
+            if (!node || typeof node !== 'object') return;
+            if (Array.isArray(node)) { for (const x of node) walk(x, out); return; }
+            if (node.videoRenderer && node.videoRenderer.videoId) {
+              const v = node.videoRenderer;
+              const t = v.title && (v.title.runs ? v.title.runs.map(r => r.text).join('') : v.title.simpleText);
+              out.push({ id: v.videoId, title: t || '' });
+            }
+            const s = node.shortsLockupViewModel;
+            if (s) {
+              const id = (((s.onTap || {}).innertubeCommand || {}).reelWatchEndpoint || {}).videoId ||
+                         (s.entityId || '').replace(/^shorts-shelf-item-/, '');
+              const t = (((s.overlayMetadata || {}).primaryText || {}).content) || '';
+              if (/^[\w-]{11}$/.test(id || '')) out.push({ id, title: t });
+            }
+            for (const k of Object.keys(node)) walk(node[k], out);
+          }
+
+          async function fromTab(tab, short) {
+            const html = await getText('https://www.youtube.com/@' + HANDLE + '/' + tab);
+            const m = html.match(/ytInitialData\s*=\s*(\{[\s\S]*?\});\s*<\/script>/);
+            if (!m) throw new Error('ytInitialData not found on /' + tab);
+            const out = [];
+            walk(JSON.parse(m[1]), out);
+            const seen = new Set();
+            const entries = out.filter(e => !seen.has(e.id) && seen.add(e.id));
+            console.log('Page /' + tab + ':', entries.length, 'videos');
+            return { name: tab, short, entries };
+          }
+
+          async function fromPages() {
+            const res = [];
+            for (const [tab, short] of [['shorts', true], ['videos', false]]) {
+              try { const r = await fromTab(tab, short); if (r.entries.length) res.push(r); }
+              catch (e) { console.log('Page failed:', tab, '-', e.message); }
+            }
+            return res.length ? res : null;
+          }
+
+          /* ---------- helpers ---------- */
           async function isShort(id) {
             try {
               const r = await fetch('https://www.youtube.com/shorts/' + id, { headers: UA, redirect: 'manual' });
@@ -88,53 +121,46 @@ jobs:
             const name = short ? 'hqdefault' : 'mqdefault';
             const r = await fetch('https://i.ytimg.com/vi/' + id + '/' + name + '.jpg', { headers: UA });
             if (!r.ok) return '';
-            const buf = Buffer.from(await r.arrayBuffer());
-            return 'data:image/jpeg;base64,' + buf.toString('base64');
+            return 'data:image/jpeg;base64,' + Buffer.from(await r.arrayBuffer()).toString('base64');
           }
 
-          try {
+          /* ---------- main ---------- */
           const html = fs.readFileSync(FILE, 'utf8');
           const re = /(<script id="vdata" type="application\/json">)([\s\S]*?)(<\/script>)/;
           const m = html.match(re);
           if (!m) throw new Error('vdata block not found in ' + FILE);
           const list = JSON.parse(m[2]);
           const known = new Set(list.map(v => v.id));
+          console.log('Page has', list.length, 'videos');
 
-          const feed = await loadFeed();
-          const entries = [...feed.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map(e => ({
-            id: (e[1].match(/<yt:videoId>([\w-]{11})<\/yt:videoId>/) || [])[1],
-            title: decode(((e[1].match(/<title>([\s\S]*?)<\/title>/) || [])[1] || '').trim()),
-          })).filter(e => e.id);
-          note('Feed has', entries.length, 'videos; page has', list.length);
-          if (!entries.length) throw new Error('The feed has no videos');
+          const sources = (await fromFeeds()) || (await fromPages());
+          if (!sources) throw new Error('Could not read any video list from YouTube (see the lines above).');
 
-          // Only videos newer than the newest video we already know are added,
+          // Only videos newer than the newest known video are added,
           // so videos deleted in the admin panel do not come back.
-          let fresh;
-          if (!list.length) fresh = entries;
-          else {
-            const idx = entries.findIndex(e => known.has(e.id));
-            if (idx < 0) { note('No known video in the feed, nothing added.'); process.exit(0); }
-            fresh = entries.slice(0, idx);
+          const fresh = [];
+          for (const src of sources) {
+            let part;
+            if (!list.length) part = src.entries;
+            else {
+              const idx = src.entries.findIndex(e => known.has(e.id));
+              if (idx < 0) { console.log('Source', src.name, ': no known video in it, skipped.'); continue; }
+              part = src.entries.slice(0, idx);
+            }
+            for (const e of part) if (!known.has(e.id) && !fresh.some(f => f.e.id === e.id)) fresh.push({ e, short: src.short });
           }
-          fresh = fresh.filter(e => !known.has(e.id));
-          if (!fresh.length) { note('No new videos.'); process.exit(0); }
+          if (!fresh.length) { console.log('No new videos.'); process.exit(0); }
 
           const add = [];
-          for (const e of fresh) {
-            const short = await isShort(e.id);
+          for (const { e, short: s } of fresh) {
+            const short = s === null ? await isShort(e.id) : s;
             let img = '';
             try { img = await thumb(e.id, short); } catch {}
             add.push({ id: e.id, title: e.title || 'Untitled', short, img });
-            note('Added:', e.id, e.title);
+            console.log('Added:', e.id, e.title);
           }
-          const next = add.concat(list);
-          const json = JSON.stringify(next).replace(/</g, '\\u003c');
+          const json = JSON.stringify(add.concat(list)).replace(/</g, '\\u003c');
           fs.writeFileSync(FILE, html.replace(re, (_, a, __, c) => a + json + c));
-          } catch (e) {
-            console.log('::error::' + String((e && e.message) || e).replace(/[\r\n]+/g, ' '));
-            process.exit(1);
-          }
           SCRIPT_END
           node update-videos.mjs
           rm update-videos.mjs
