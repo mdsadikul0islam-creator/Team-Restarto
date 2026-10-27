@@ -2,7 +2,7 @@ name: Update videos from YouTube
 
 on:
   schedule:
-    - cron: '17 * * * *'
+    - cron: '5 5,6,7 * * *'
   workflow_dispatch:
 
 permissions:
