@@ -2,8 +2,19 @@ name: Update videos from YouTube
 
 on:
   schedule:
+    # 08:00 Bangladesh time: update view counts only
+    - cron: '0 2 * * *'
+    # 11:05 Bangladesh time (plus two retries): add new videos only
     - cron: '5 5,6,7 * * *'
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'What to update'
+        type: choice
+        default: videos
+        options:
+          - videos
+          - views
 
 permissions:
   contents: write
@@ -11,6 +22,8 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
+    env:
+      MODE: ${{ github.event.schedule == '0 2 * * *' && 'views' || github.event.inputs.mode || 'videos' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -18,7 +31,7 @@ jobs:
         with:
           node-version: 20
 
-      - name: Add new videos to index.html
+      - name: Update index.html from YouTube
         run: |
           cat > update-videos.mjs <<'SCRIPT_END'
           import fs from 'node:fs';
@@ -69,6 +82,16 @@ jobs:
             return null;
           }
 
+          /* ---------- view counts ---------- */
+          // "12K views" -> "12K", "1,234 views" -> "1,234", "No views" -> "0", anything else -> ''
+          function cleanViews(t) {
+            if (!t) return '';
+            t = String(t).replace(/\u00a0/g, ' ').trim();
+            if (/^no views?$/i.test(t)) return '0';
+            const m = t.match(/^([\d.,]+\s?[KMB]?)\s+views?$/i);
+            return m ? m[1].replace(/\s/g, '') : '';
+          }
+
           /* ---------- source 3: channel pages ---------- */
           function walk(node, out) {
             if (!node || typeof node !== 'object') return;
@@ -76,14 +99,16 @@ jobs:
             if (node.videoRenderer && node.videoRenderer.videoId) {
               const v = node.videoRenderer;
               const t = v.title && (v.title.runs ? v.title.runs.map(r => r.text).join('') : v.title.simpleText);
-              out.push({ id: v.videoId, title: t || '' });
+              const vc = v.viewCountText && (v.viewCountText.simpleText || (v.viewCountText.runs || []).map(r => r.text).join(''));
+              out.push({ id: v.videoId, title: t || '', views: cleanViews(vc) });
             }
             const s = node.shortsLockupViewModel;
             if (s) {
               const id = (((s.onTap || {}).innertubeCommand || {}).reelWatchEndpoint || {}).videoId ||
                          (s.entityId || '').replace(/^shorts-shelf-item-/, '');
               const t = (((s.overlayMetadata || {}).primaryText || {}).content) || '';
-              if (/^[\w-]{11}$/.test(id || '')) out.push({ id, title: t });
+              const sv = ((s.overlayMetadata || {}).secondaryText || {}).content;
+              if (/^[\w-]{11}$/.test(id || '')) out.push({ id, title: t, views: cleanViews(sv) });
             }
             for (const k of Object.keys(node)) walk(node[k], out);
           }
@@ -140,6 +165,23 @@ jobs:
           const known = new Set(list.map(v => v.id));
           console.log('Page has', list.length, 'videos');
 
+          if (process.env.MODE === 'views') {
+            const pages = await fromPages();
+            if (!pages) throw new Error('Could not read channel pages (see the lines above).');
+            const map = new Map();
+            for (const p of pages) for (const e of p.entries) if (e.views !== '' && e.views !== undefined) map.set(e.id, e.views);
+            let changed = 0;
+            for (const v of list) {
+              const nv = map.get(v.id);
+              if (nv !== undefined && v.views !== nv) { v.views = nv; changed++; }
+            }
+            console.log('Views found for', map.size, 'videos;', changed, 'updated.');
+            if (!changed) { console.log('Nothing to update.'); process.exit(0); }
+            const json = JSON.stringify(list).replace(/</g, '\\u003c');
+            fs.writeFileSync(FILE, html.replace(re, (_, a, __, c) => a + json + c));
+            process.exit(0);
+          }
+
           const sources = (await fromFeeds()) || (await fromPages());
           if (!sources) throw new Error('Could not read any video list from YouTube (see the lines above).');
 
@@ -163,7 +205,7 @@ jobs:
             const short = s === null ? await isShort(e.id) : s;
             let img = '';
             try { img = await thumb(e.id, short); } catch {}
-            add.push({ id: e.id, title: cleanTitle(e.title || '') || 'Untitled', short, img });
+            add.push({ id: e.id, title: cleanTitle(e.title || '') || 'Untitled', short, img, ...(e.views ? { views: e.views } : {}) });
             console.log('Added:', e.id, cleanTitle(e.title || ''));
           }
           const json = JSON.stringify(add.concat(list)).replace(/</g, '\\u003c');
@@ -180,6 +222,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "Nothing to commit"
           else
-            git commit -m "Auto-add new videos from YouTube"
+            if [ "$MODE" = "views" ]; then MSG="Auto-update view counts"; else MSG="Auto-add new videos from YouTube"; fi
+            git commit -m "$MSG"
             git push
           fi

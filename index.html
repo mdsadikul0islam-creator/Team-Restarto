@@ -608,6 +608,9 @@ html[data-lang="bn"] .nav .links a,html[data-lang="bn"] .nav .links a.on{font-si
   .wrap{max-width:84rem}
   .hero p{font-size:1.4rem}
 }
+.video .views{margin:.2rem 0 0;font-size:.85rem;font-weight:500;color:var(--muted);letter-spacing:0}
+.video .views span{font-size:inherit}
+@media (max-width:40rem){.video .views{font-size:.7rem;margin-top:.15rem}}
 </style>
 <div class="liquid" aria-hidden="true"><i></i><i></i><i></i></div>
 
@@ -826,7 +829,14 @@ html[data-lang="bn"] .nav .links a,html[data-lang="bn"] .nav .links a.on{font-si
     var p=document.createElement('div'); p.className='play'; t.appendChild(p);
     var n=document.createElement('div'); n.className='num'; n.setAttribute('aria-hidden','true'); n.textContent=String(i+1).padStart(2,'0'); t.insertBefore(n,p);
     var h=document.createElement('h3'); h.textContent=v.title||'Untitled';
-    a.appendChild(t); a.appendChild(h); grid.appendChild(a);
+    a.appendChild(t); a.appendChild(h);
+    if(typeof v.views==='string' && /^[\d.,]+[KMB]?$/.test(v.views)){
+      var vw=document.createElement('div'); vw.className='views';
+      var e1=document.createElement('span'); e1.lang='en'; e1.textContent=v.views+(v.views==='1'?' view':' views');
+      var b1=document.createElement('span'); b1.lang='bn'; b1.textContent=v.views+' ভিউ';
+      vw.appendChild(e1); vw.appendChild(b1); a.appendChild(vw);
+    }
+    grid.appendChild(a);
   });
   if(!grid.children.length){
     var e=document.createElement('p'); e.className='sub'; e.textContent='Videos are coming soon.'; grid.appendChild(e);
