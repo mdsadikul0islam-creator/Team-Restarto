@@ -1738,4 +1738,15 @@ html[data-lang="bn"] .nav .links a,html[data-lang="bn"] .nav .links a.on{font-si
 
 
 
+<script>
+/* phone "Desktop site" mode: make sure the desktop layout is used */
+(function(){try{
+  var ua=navigator.userAgent||'';
+  var desktopUA=!/Android|iPhone|iPad|iPod|Mobi/i.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1);
+  if(desktopUA&&navigator.maxTouchPoints>0&&window.innerWidth<928){
+    var m=document.querySelector('meta[name="viewport"]');
+    if(m) m.setAttribute('content','width=1100,viewport-fit=cover');
+  }
+}catch(e){}})();
+</script>
 </body></html>
