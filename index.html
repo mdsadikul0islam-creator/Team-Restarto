@@ -546,7 +546,7 @@ html[data-lang="bn"] .nav .links a,html[data-lang="bn"] .nav .links a.on{font-si
 @media (prefers-reduced-motion:reduce){.soc{transition:none}}
 
 /* ===== desktop layout (>=1024px): top menu bar, wider grids ===== */
-@media (min-width:64rem){
+@media (min-width:58rem){
   body{padding-bottom:0}
   .wrap{max-width:76rem;padding:0 2.25rem}
   header.top{padding-top:1.1rem}
@@ -597,6 +597,12 @@ html[data-lang="bn"] .nav .links a,html[data-lang="bn"] .nav .links a.on{font-si
 
   /* footer */
   footer{padding:2rem 0 2.2rem}
+}
+@media (min-width:58rem) and (max-width:70rem){
+  .wrap{padding:0 1.25rem}
+  .nav{padding-left:1.1rem}
+  .nav .links a,.nav .links a.on,html[data-lang="bn"] .nav .links a,html[data-lang="bn"] .nav .links a.on{padding:.55rem .8rem;font-size:.9rem;gap:.4rem}
+  .videos{grid-template-columns:repeat(3,1fr)}
 }
 @media (min-width:90rem){
   .wrap{max-width:84rem}
