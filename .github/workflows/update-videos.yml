@@ -15,6 +15,7 @@ on:
         options:
           - videos
           - views
+          - rebuild
 
 permissions:
   contents: write
@@ -182,6 +183,39 @@ jobs:
             process.exit(0);
           }
 
+          if (process.env.MODE === 'rebuild') {
+            // Rebuild the whole list from the PUBLIC channel pages (unlisted/private videos are not on them).
+            const pages = await fromPages();
+            if (!pages) throw new Error('Could not read channel pages (see the lines above).');
+            const all = [];
+            const seen = new Set();
+            for (const p of pages) for (const e of p.entries) if (!seen.has(e.id)) { seen.add(e.id); all.push({ ...e, short: p.short }); }
+            console.log('Public videos found:', all.length);
+            if (!all.length) throw new Error('No videos found, list left unchanged.');
+            // publish date, so the newest video is first across Shorts and Videos
+            for (const e of all) {
+              e.date = '';
+              try {
+                const h = await getText('https://www.youtube.com/watch?v=' + e.id);
+                const d = h.match(/"(?:publishDate|uploadDate)":"(\d{4}-\d{2}-\d{2}[^"]*)"/);
+                if (d) e.date = d[1];
+              } catch (err) { console.log('No date for', e.id, '-', err.message); }
+            }
+            console.log('Dates found for', all.filter(e => e.date).length, 'of', all.length);
+            all.forEach((e, i) => { e.idx = i; });
+            all.sort((a, b) => (a.date && b.date && a.date !== b.date) ? (a.date < b.date ? 1 : -1) : a.idx - b.idx);
+            const out = [];
+            for (const e of all) {
+              let img = '';
+              try { img = await thumb(e.id, e.short); } catch {}
+              out.push({ id: e.id, title: cleanTitle(e.title || '') || 'Untitled', short: e.short, img, ...(e.views ? { views: e.views } : {}) });
+              console.log((e.short ? 'short ' : 'video ') + e.id + ' ' + (e.date || 'no-date') + ' ' + (e.views || '-') + ' ' + cleanTitle(e.title || ''));
+            }
+            const json = JSON.stringify(out).replace(/</g, '\\u003c');
+            fs.writeFileSync(FILE, html.replace(re, (_, a, __, c) => a + json + c));
+            process.exit(0);
+          }
+
           const sources = (await fromFeeds()) || (await fromPages());
           if (!sources) throw new Error('Could not read any video list from YouTube (see the lines above).');
 
@@ -222,7 +256,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "Nothing to commit"
           else
-            if [ "$MODE" = "views" ]; then MSG="Auto-update view counts"; else MSG="Auto-add new videos from YouTube"; fi
+            if [ "$MODE" = "views" ]; then MSG="Auto-update view counts"; elif [ "$MODE" = "rebuild" ]; then MSG="Rebuild video list from public YouTube channel"; else MSG="Auto-add new videos from YouTube"; fi
             git commit -m "$MSG"
             git push
           fi
