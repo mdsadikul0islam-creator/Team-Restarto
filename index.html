@@ -525,6 +525,25 @@ header.top{position:sticky;top:0;z-index:30;padding:calc(.6rem + env(safe-area-i
 }
 html[data-lang="bn"] .nav .links a,html[data-lang="bn"] .nav .links a.on{font-size:.66rem}
 @media (prefers-reduced-motion:reduce){.nav .links .pill,.btn,.chbtn,.ccard{transition:none}}
+
+/* social links */
+.fcard{margin-top:1.25rem;padding:1.4rem 1.2rem 1.5rem;border-radius:30px;text-align:center;
+  background:var(--lg-fill);-webkit-backdrop-filter:blur(24px) saturate(185%);backdrop-filter:blur(24px) saturate(185%);box-shadow:var(--lg-edge),var(--lg-drop)}
+.fcard h3{margin:0 0 .9rem;font-size:1.25rem;letter-spacing:-.02em}
+.socials{display:flex;justify-content:center;flex-wrap:wrap;gap:.9rem}
+.soc{--c:var(--fg);display:grid;place-items:center;width:3.5rem;height:3.5rem;border-radius:50%;color:var(--c);text-decoration:none;
+  background:var(--lg-fill);-webkit-backdrop-filter:blur(20px) saturate(185%);backdrop-filter:blur(20px) saturate(185%);
+  box-shadow:var(--lg-edge),0 6px 16px rgba(0,0,0,.22);transition:transform .4s var(--spring),box-shadow .25s,background .25s;-webkit-tap-highlight-color:transparent}
+.soc svg{width:1.6rem;height:1.6rem}
+.soc.facebook{--c:#4aa3ff}.soc.instagram{--c:#ff5fa2}.soc.youtube{--c:#ff453a}
+@media (hover:hover){.soc:hover{transform:translateY(-3px) scale(1.06);background:var(--glass-hi);box-shadow:var(--lg-edge),0 10px 24px rgba(0,0,0,.28),0 0 0 3px color-mix(in srgb,var(--c) 28%,transparent)}}
+.soc:active{transform:scale(.92)}
+.socials.small{gap:.6rem;margin:0 0 .8rem}
+.socials.small .soc{width:2.6rem;height:2.6rem}
+.socials.small .soc svg{width:1.2rem;height:1.2rem}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]) .soc.facebook{--c:#1877f2}:root:not([data-theme="dark"]) .soc.instagram{--c:#e1306c}:root:not([data-theme="dark"]) .soc.youtube{--c:#ff0033}}
+:root[data-theme="light"] .soc.facebook{--c:#1877f2}:root[data-theme="light"] .soc.instagram{--c:#e1306c}:root[data-theme="light"] .soc.youtube{--c:#ff0033}
+@media (prefers-reduced-motion:reduce){.soc{transition:none}}
 </style>
 <div class="liquid" aria-hidden="true"><i></i><i></i><i></i></div>
 
@@ -717,11 +736,12 @@ html[data-lang="bn"] .nav .links a,html[data-lang="bn"] .nav .links a.on{font-si
           <strong><span lang="en" data-ed="Email card title (English)">Email</span><span lang="bn" data-ed="Email card title (Bangla)">ইমেইল</span></strong><span data-ed="Email shown">mdsadikul0islam@gmail.com</span>
         </a>
       </div>
+      <div class="fcard"><h3><span lang="en" data-ed="Follow us title (English)">Follow us</span><span lang="bn" data-ed="Follow us title (Bangla)">আমাদের ফলো করুন</span></h3><div class="socials"><a class="soc facebook" href="https://www.facebook.com/profile.php?id=61595647752363" target="_blank" rel="noopener noreferrer" data-ref="Facebook link" aria-label="Facebook" title="Facebook"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d='M14 8.5h3V4.5h-3a4 4 0 0 0-4 4v2.5H7v4h3V21h4v-6h3l1-4h-4V9c0-.3.2-.5.5-.5z'/></svg></a><a class="soc instagram" href="https://www.instagram.com/teamrestarto" target="_blank" rel="noopener noreferrer" data-ref="Instagram link" aria-label="Instagram" title="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x='3.5' y='3.5' width='17' height='17' rx='5'/><circle cx='12' cy='12' r='4'/><circle cx='17.2' cy='6.8' r='.9' fill='currentColor' stroke='none'/></svg></a><a class="soc tiktok" href="https://www.tiktok.com/@teamrestarto" target="_blank" rel="noopener noreferrer" data-ref="TikTok link" aria-label="TikTok" title="TikTok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d='M14 3.5v10.2a3.8 3.8 0 1 1-3.8-3.8'/><path d='M14 3.5c.35 2.7 2 4.4 5 4.6'/></svg></a><a class="soc youtube" href="https://www.youtube.com/@teamrestarto1" target="_blank" rel="noopener noreferrer" data-ref="YouTube link" aria-label="YouTube" title="YouTube"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x='2.8' y='5.5' width='18.4' height='13' rx='4'/><path d='M10.2 9.3v5.4l4.7-2.7z' fill='currentColor'/></svg></a></div></div>
     </div>
   </section>
 </main>
 
-<footer><div class="wrap"><span lang="en" data-ed="Footer text (English)">© 2026 Team Restarto</span><span lang="bn" data-ed="Footer text (Bangla)">© ২০২৬ টিম রিস্টার্টো</span></div></footer>
+<footer><div class="wrap"><div class="socials small"><a class="soc facebook" href="https://www.facebook.com/profile.php?id=61595647752363" target="_blank" rel="noopener noreferrer" data-ref="Footer Facebook link" aria-label="Facebook" title="Facebook"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d='M14 8.5h3V4.5h-3a4 4 0 0 0-4 4v2.5H7v4h3V21h4v-6h3l1-4h-4V9c0-.3.2-.5.5-.5z'/></svg></a><a class="soc instagram" href="https://www.instagram.com/teamrestarto" target="_blank" rel="noopener noreferrer" data-ref="Footer Instagram link" aria-label="Instagram" title="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x='3.5' y='3.5' width='17' height='17' rx='5'/><circle cx='12' cy='12' r='4'/><circle cx='17.2' cy='6.8' r='.9' fill='currentColor' stroke='none'/></svg></a><a class="soc tiktok" href="https://www.tiktok.com/@teamrestarto" target="_blank" rel="noopener noreferrer" data-ref="Footer TikTok link" aria-label="TikTok" title="TikTok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d='M14 3.5v10.2a3.8 3.8 0 1 1-3.8-3.8'/><path d='M14 3.5c.35 2.7 2 4.4 5 4.6'/></svg></a><a class="soc youtube" href="https://www.youtube.com/@teamrestarto1" target="_blank" rel="noopener noreferrer" data-ref="Footer YouTube link" aria-label="YouTube" title="YouTube"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x='2.8' y='5.5' width='18.4' height='13' rx='4'/><path d='M10.2 9.3v5.4l4.7-2.7z' fill='currentColor'/></svg></a></div><span lang="en" data-ed="Footer text (English)">© 2026 Team Restarto</span><span lang="bn" data-ed="Footer text (Bangla)">© ২০২৬ টিম রিস্টার্টো</span></div></footer>
 
 <script>
 (function(){
