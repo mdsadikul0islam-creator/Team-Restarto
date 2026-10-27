@@ -611,6 +611,7 @@ html[data-lang="bn"] .nav .links a,html[data-lang="bn"] .nav .links a.on{font-si
 .video .views{margin:.2rem 0 0;font-size:.85rem;font-weight:500;color:var(--muted);letter-spacing:0}
 .video .views span{font-size:inherit}
 @media (max-width:40rem){.video .views{font-size:.7rem;margin-top:.15rem}}
+.latest-card .views{text-align:center;margin-top:.15rem;font-size:.78rem}
 </style>
 <div class="liquid" aria-hidden="true"><i></i><i></i><i></i></div>
 
@@ -1325,7 +1326,9 @@ html[data-lang="bn"] .nav .links a,html[data-lang="bn"] .nav .links a.on{font-si
       a.href=first.href; a.target='_blank'; a.rel='noopener';
       var th=first.querySelector('.thumb').cloneNode(true); th.removeAttribute('style');
       var h3=document.createElement('h3'); var src3=first.querySelector('h3'); h3.textContent=src3?src3.textContent:'';
-      a.appendChild(th); a.appendChild(h3); slot.appendChild(a);
+      a.appendChild(th); a.appendChild(h3);
+      var fv=first.querySelector('.views'); if(fv) a.appendChild(fv.cloneNode(true));
+      slot.appendChild(a);
       a.addEventListener('click',function(e){
         if(e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||e.button>0) return;
         e.preventDefault();
