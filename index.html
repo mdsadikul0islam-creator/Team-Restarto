@@ -1142,6 +1142,9 @@ html[data-lang="bn"] .nav .links a,html[data-lang="bn"] .nav .links a.on{font-si
   /* live subscriber count: circle on home + big live page */
   try{(function(){
     var box=$('#subNum'), big=$('#liveBig'), stamp=$('#liveStamp'), lv=$('#view-live'); if(!box) return;
+    /* paused: set LIVE_SUBS to true to turn the live subscriber counter back on */
+    var LIVE_SUBS=false;
+    if(!LIVE_SUBS){var lsb=$('.live-sub'); if(lsb) lsb.style.display='none'; return}
     var ID='UCDwgn4MWDeBTVenD2371Fnw', KEY='AIzaSyDgMxzxuHYbCmcqEhlI9HNZLXbTxrMJnTU', shown=0, tried=0, busy=false, raf=0;
     var fmt=function(n){try{return new Intl.NumberFormat('en',{notation:'compact',maximumFractionDigits:1}).format(n)}catch(e){return String(n)}};
     var full=function(n){try{return n.toLocaleString(LANG()==='bn'?'bn-BD':'en')}catch(e){return String(n)}};
